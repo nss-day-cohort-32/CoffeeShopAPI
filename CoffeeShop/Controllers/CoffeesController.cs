@@ -30,14 +30,24 @@ namespace CoffeeShop.Controllers
         }
 
         [HttpGet]
-        public ActionResult<List<Coffee>> Get()
+        public ActionResult<List<Coffee>> Get([FromQuery] string beanType)
         {
+            if (beanType == null)
+            {
+                beanType = "";
+            }
+
             using (SqlConnection conn = Connection)
             {
                 conn.Open();
                 using (SqlCommand cmd = conn.CreateCommand())
                 {
-                    cmd.CommandText = "SELECT Id, Title, BeanType FROM Coffee";
+                    cmd.CommandText = @"
+                        SELECT Id, Title, BeanType 
+                        FROM Coffee
+                        WHERE BeanType LIKE '%' + @beanType + '%'";
+                        
+                    cmd.Parameters.Add(new SqlParameter("@beanType", beanType));
                     SqlDataReader reader = cmd.ExecuteReader();
                     List<Coffee> coffees = new List<Coffee>();
 
@@ -60,7 +70,7 @@ namespace CoffeeShop.Controllers
         }
 
         [HttpGet("{id}", Name = "GetCoffee")]
-        public ActionResult<Coffee> Get([FromRoute] int id)
+        public async Task<IActionResult> Get([FromRoute] int id)
         {
             using (SqlConnection conn = Connection)
             {
@@ -73,11 +83,11 @@ namespace CoffeeShop.Controllers
                         FROM Coffee
                         WHERE Id = @coffeeid";
                     cmd.Parameters.Add(new SqlParameter("@coffeeid", id));
-                    SqlDataReader reader = cmd.ExecuteReader();
+                    SqlDataReader reader = await cmd.ExecuteReaderAsync();
 
                     Coffee coffee = null;
 
-                    if (reader.Read())
+                    if (await reader.ReadAsync())
                     {
                         coffee = new Coffee
                         {
@@ -100,7 +110,7 @@ namespace CoffeeShop.Controllers
         }
 
         [HttpPost]
-        public ActionResult<Coffee> Post([FromBody] Coffee coffee)
+        public async Task<IActionResult> Post([FromBody] Coffee coffee)
         {
             using (SqlConnection conn = Connection)
             {
@@ -113,7 +123,8 @@ namespace CoffeeShop.Controllers
                     cmd.Parameters.Add(new SqlParameter("@title", coffee.Title));
                     cmd.Parameters.Add(new SqlParameter("@beanType", coffee.BeanType));
 
-                    int newId = (int)cmd.ExecuteScalar();
+                    var result = await cmd.ExecuteScalarAsync();
+                    var newId = (int)result;
                     coffee.Id = newId;
                     return CreatedAtRoute("GetCoffee", new { id = newId }, coffee);
                 }
